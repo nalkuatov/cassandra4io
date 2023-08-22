@@ -6,7 +6,7 @@ inThisBuild(
     organizationName := "ringcentral",
     licenses := List("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := Seq("2.13.10", "2.12.17"),
+    crossScalaVersions := Seq("3.3.0", "2.13.10"),
     licenses := Seq(("Apache-2.0", url("https://opensource.org/licenses/Apache-2.0"))),
     homepage := Some(url("https://github.com/ringcentral/cassandra4io")),
     developers := List(
@@ -16,6 +16,12 @@ inThisBuild(
         name = "Alexey Yuferov",
         email = "aleksey.yuferov@icloud.com",
         url = url("https://github.com/alexuf")
+      ),
+      Developer(
+        id = "nalkuatov",
+        name = "Nurlan Alkuatov",
+        email = "alkuatovnurlan@gmail.com",
+        url = url("https://nalkuatov.kz")
       )
     )
   )
@@ -27,25 +33,18 @@ lazy val root = (project in file("."))
     Defaults.itSettings,
     IntegrationTest / fork := true,
     libraryDependencies ++= Seq(
-      "org.typelevel"       %% "cats-effect"                    % "3.5.0",
-      "co.fs2"              %% "fs2-core"                       % "3.7.0",
-      "com.datastax.oss"     % "java-driver-core"               % "4.15.0",
-      "com.chuusai"         %% "shapeless"                      % "2.3.10"
-    ) ++ Seq(
+      "org.typelevel"   %% "cats-effect"      % "3.5.0",
+      "co.fs2"          %% "fs2-core"         % "3.7.0",
+      "com.datastax.oss" % "java-driver-core" % "4.15.0"
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((3, _)) => Seq("org.typelevel" %% "shapeless3-deriving" % "3.3.0")
+      case _            => Seq("com.chuusai" %% "shapeless" % "2.3.10")
+    }) ++ Seq(
       "com.disneystreaming" %% "weaver-cats"                    % "0.8.3"   % "it,test",
       "org.testcontainers"   % "testcontainers"                 % "1.18.1"  % "it",
       "com.dimafeng"        %% "testcontainers-scala-cassandra" % "0.40.15" % "it",
       "ch.qos.logback"       % "logback-classic"                % "1.4.7"   % "it,test"
-    ) ++ (scalaBinaryVersion.value match {
-      case v if v.startsWith("2.13") =>
-        Seq.empty
-
-      case v if v.startsWith("2.12") =>
-        Seq("org.scala-lang.modules" %% "scala-collection-compat" % "2.10.0")
-
-      case other                     =>
-        sys.error(s"Unsupported scala version: $other")
-    })
+    )
   )
 
 Compile / compile / scalacOptions ++= Seq(
@@ -55,8 +54,8 @@ Compile / compile / scalacOptions ++= Seq(
   "-unchecked",
   "-deprecation"
 ) ++
-  (scalaBinaryVersion.value match {
-    case v if v.startsWith("2.13") =>
+  (CrossVersion.partialVersion(scalaVersion.value) match {
+    case Some((2, _)) =>
       List(
         "-Xlint:strict-unsealed-patmat",
         "-Xlint:-serial",
@@ -70,19 +69,7 @@ Compile / compile / scalacOptions ++= Seq(
         "-Xfatal-warnings",
         "-Wconf:any:error"
       )
-    case v if v.startsWith("2.12") =>
-      List(
-        "-language:higherKinds",
-        // "-Ywarn-unused",
-        "-Yrangepos",
-        "-explaintypes",
-        "-language:higherKinds",
-        "-language:implicitConversions",
-        "-Xfatal-warnings"
-      )
-    case v if v.startsWith("0.")   =>
-      Nil
-    case other                     => sys.error(s"Unsupported scala version: $other")
+    case _ => Nil
   })
 
 testFrameworks := Seq(new TestFramework("weaver.framework.CatsEffect"))

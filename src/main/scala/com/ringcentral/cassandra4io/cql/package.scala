@@ -9,8 +9,6 @@ import com.datastax.oss.driver.api.core.cql._
 import com.datastax.oss.driver.api.core.data.UdtValue
 import com.datastax.oss.driver.internal.core.`type`.{ DefaultListType, DefaultMapType, DefaultSetType }
 import fs2.Stream
-import shapeless._
-import shapeless.ops.hlist.Prepend
 
 import java.nio.ByteBuffer
 import java.time.{ Instant, LocalDate }
@@ -19,140 +17,6 @@ import scala.annotation.{ implicitNotFound, tailrec }
 import scala.jdk.CollectionConverters._
 
 package object cql {
-
-  case class QueryTemplate[V <: HList: Binder, R: Reads] private[cql] (
-    query: String,
-    config: BoundStatement => BoundStatement
-  ) {
-    def +(that: String): QueryTemplate[V, R] = QueryTemplate[V, R](this.query + that, config)
-
-    def ++[W <: HList, Out <: HList](that: QueryTemplate[W, R])(implicit
-      prepend: Prepend.Aux[V, W, Out],
-      binderForW: Binder[W],
-      binderForOut: Binder[Out]
-    ): QueryTemplate[Out, R] = concat(that)
-
-    def concat[W <: HList, Out <: HList](that: QueryTemplate[W, R])(implicit
-      prepend: Prepend.Aux[V, W, Out],
-      binderForW: Binder[W],
-      binderForOut: Binder[Out]
-    ): QueryTemplate[Out, R] = QueryTemplate[Out, R](
-      this.query + that.query,
-      statement => (this.config andThen that.config)(statement)
-    )
-
-    def as[R1: Reads]: QueryTemplate[V, R1] = QueryTemplate[V, R1](query, config)
-
-    def prepare[F[_]: Functor](session: CassandraSession[F]): F[PreparedQuery[F, V, R]] =
-      session.prepare(query).map(new PreparedQuery(session, _, config))
-
-    def config(config: BoundStatement => BoundStatement): QueryTemplate[V, R] =
-      QueryTemplate[V, R](this.query, this.config andThen config)
-
-    def stripMargin: QueryTemplate[V, R] = QueryTemplate[V, R](this.query.stripMargin, this.config)
-  }
-
-  type SimpleQuery[Output] = ParameterizedQuery[HNil, Output]
-
-  case class ParameterizedQuery[V <: HList: Binder, R: Reads] private (template: QueryTemplate[V, R], values: V) {
-    def +(that: String): ParameterizedQuery[V, R] = ParameterizedQuery[V, R](this.template + that, this.values)
-
-    def ++[W <: HList, Out <: HList](that: ParameterizedQuery[W, R])(implicit
-      prepend: Prepend.Aux[V, W, Out],
-      binderForW: Binder[W],
-      binderForOut: Binder[Out]
-    ): ParameterizedQuery[Out, R] = concat(that)
-
-    def concat[W <: HList, Out <: HList](that: ParameterizedQuery[W, R])(implicit
-      prepend: Prepend.Aux[V, W, Out],
-      binderForW: Binder[W],
-      binderForOut: Binder[Out]
-    ): ParameterizedQuery[Out, R] =
-      ParameterizedQuery[Out, R](this.template ++ that.template, prepend(this.values, that.values))
-
-    def as[R1: Reads]: ParameterizedQuery[V, R1] = ParameterizedQuery[V, R1](template.as[R1], values)
-
-    def select[F[_]: Functor](session: CassandraSession[F]): Stream[F, R] =
-      Stream.force(template.prepare(session).map(_.applyProduct(values).select))
-
-    def selectFirst[F[_]: Monad](session: CassandraSession[F]): F[Option[R]] =
-      template.prepare(session).flatMap(_.applyProduct(values).selectFirst)
-
-    def execute[F[_]: Monad](session: CassandraSession[F]): F[Boolean] =
-      template.prepare(session).map(_.applyProduct(values)).flatMap(_.execute)
-
-    def config(config: BoundStatement => BoundStatement): ParameterizedQuery[V, R] =
-      ParameterizedQuery[V, R](template.config(config), values)
-
-    def stripMargin: ParameterizedQuery[V, R] = ParameterizedQuery[V, R](this.template.stripMargin, values)
-  }
-
-  class PreparedQuery[F[_]: Functor, V <: HList: Binder, R: Reads] private[cql] (
-    session: CassandraSession[F],
-    statement: PreparedStatement,
-    config: BoundStatement => BoundStatement
-  ) extends ProductArgs {
-    def applyProduct(values: V) = new Query[F, R](session, Binder[V].bind(config(statement.bind()), 0, values)._1)
-  }
-
-  class Query[F[_]: Functor, R: Reads] private[cql] (
-    session: CassandraSession[F],
-    private[cql] val statement: BoundStatement
-  ) {
-    def config(statement: BoundStatement => BoundStatement) = new Query[F, R](session, statement(this.statement))
-    def select: Stream[F, R]                                = session.select(statement).map(Reads[R].read(_, 0))
-    def selectFirst: F[Option[R]]                           = OptionT(session.selectFirst(statement)).map(Reads[R].read(_, 0)).value
-    def execute: F[Boolean]                                 = session.execute(statement).map(_.wasApplied)
-  }
-
-  class Batch[F[_]: Functor](batchStatementBuilder: BatchStatementBuilder) {
-    def add(queries: Seq[Query[F, _]])                                           = new Batch[F](batchStatementBuilder.addStatements(queries.map(_.statement): _*))
-    def execute(session: CassandraSession[F]): F[Boolean]                        =
-      session.execute(batchStatementBuilder.build()).map(_.wasApplied)
-    def config(config: BatchStatementBuilder => BatchStatementBuilder): Batch[F] =
-      new Batch[F](config(batchStatementBuilder))
-  }
-
-  object Batch {
-    def logged[F[_]: Functor]   = new Batch[F](new BatchStatementBuilder(BatchType.LOGGED))
-    def unlogged[F[_]: Functor] = new Batch[F](new BatchStatementBuilder(BatchType.UNLOGGED))
-  }
-
-  class CqlTemplateStringInterpolator(ctx: StringContext) extends ProductArgs {
-    import CqlTemplateStringInterpolator._
-    def applyProduct[P <: HList, V <: HList](params: P)(implicit
-      bb: BindableBuilder.Aux[P, V]
-    ): QueryTemplate[V, Row] = {
-      implicit val binder: Binder[V] = bb.binder
-      QueryTemplate[V, Row](ctx.parts.mkString("?"), identity)
-    }
-  }
-
-  object CqlTemplateStringInterpolator {
-
-    trait BindableBuilder[P] {
-      type Repr <: HList
-      def binder: Binder[Repr]
-    }
-
-    private object BindableBuilder {
-      type Aux[P, Repr0] = BindableBuilder[P] { type Repr = Repr0 }
-      def apply[P](implicit builder: BindableBuilder[P]): BindableBuilder.Aux[P, builder.Repr] = builder
-      implicit def hNilBindableBuilder: BindableBuilder.Aux[HNil, HNil]                        = new BindableBuilder[HNil] {
-        override type Repr = HNil
-        override def binder: Binder[HNil] = Binder[HNil]
-      }
-      implicit def hConsBindableBuilder[PH <: Put[_], T: Binder, PT <: HList, RT <: HList](implicit
-        f: BindableBuilder.Aux[PT, RT]
-      ): BindableBuilder.Aux[Put[T] :: PT, T :: RT]                                            = new BindableBuilder[Put[T] :: PT] {
-        override type Repr = T :: RT
-        override def binder: Binder[T :: RT] = {
-          implicit val tBinder: Binder[RT] = f.binder
-          Binder[T :: RT]
-        }
-      }
-    }
-  }
 
   /**
    * BoundValue is used to capture the value inside the cql interpolated string along with evidence of its Binder so that
@@ -163,61 +27,6 @@ package object cql {
     // This implicit conversion automatically captures the value and evidence of the Binder in a cql interpolated string
     implicit def aToBoundValue[A](a: A)(implicit ev: Binder[A]): BoundValue[A] =
       BoundValue(a, ev)
-  }
-
-  class CqlStringInterpolator(ctx: StringContext) {
-    @tailrec
-    private def replaceValuesWithQuestionMark(
-      strings: Iterator[String],
-      expressions: Iterator[BoundValue[_]],
-      acc: String
-    ): String =
-      if (strings.hasNext && expressions.hasNext) {
-        val str = strings.next()
-        val _   = expressions.next()
-        replaceValuesWithQuestionMark(
-          strings = strings,
-          expressions = expressions,
-          acc = acc + s"$str?"
-        )
-      } else if (strings.hasNext && !expressions.hasNext) {
-        val str = strings.next()
-        replaceValuesWithQuestionMark(
-          strings = strings,
-          expressions = expressions,
-          acc + str
-        )
-      } else acc
-
-    def apply(values: BoundValue[_]*): SimpleQuery[Row] = {
-      val queryWithQuestionMark = replaceValuesWithQuestionMark(ctx.parts.iterator, values.iterator, "")
-      val assignValuesToStatement: BoundStatement => BoundStatement = { in: BoundStatement =>
-        val (configuredBoundStatement, _) =
-          values.foldLeft((in, 0)) { case ((current, index), bv: BoundValue[a]) =>
-            val binder: Binder[a] = bv.ev
-            val value: a          = bv.value
-            binder.bind(current, index, value)
-          }
-        configuredBoundStatement
-      }
-      ParameterizedQuery(QueryTemplate[HNil, Row](queryWithQuestionMark, assignValuesToStatement), HNil)
-    }
-  }
-
-  /**
-   * Provides a way to lift arbitrary strings into CQL so you can parameterize on values that are not valid CQL parameters
-   * Please note that this is not escaped so do not use this with user-supplied input for your application (only use
-   * cqlConst for input that you as the application author control)
-   */
-  class CqlConstInterpolator(ctx: StringContext) {
-    def apply(args: Any*): ParameterizedQuery[HNil, Row] =
-      ParameterizedQuery(QueryTemplate(ctx.s(args: _*), identity), HNil)
-  }
-
-  implicit class CqlStringContext(val ctx: StringContext) extends AnyVal {
-    def cqlt     = new CqlTemplateStringInterpolator(ctx)
-    def cql      = new CqlStringInterpolator(ctx)
-    def cqlConst = new CqlConstInterpolator(ctx)
   }
 
   implicit class UnsetOptionValueOps[A](val self: Option[A]) extends AnyVal {
@@ -329,11 +138,6 @@ package object cql {
       statement.unset(index)
     }
 
-    implicit def widenBinder[T: Binder, X <: T](implicit wd: Widen.Aux[X, T]): Binder[X] = new Binder[X] {
-      override def bind(statement: BoundStatement, index: Int, value: X): (BoundStatement, Int) =
-        Binder[T].bind(statement, index, wd.apply(value))
-    }
-
     implicit class UdtValueBinderOps(udtBinder: Binder[UdtValue]) {
 
       /**
@@ -372,17 +176,5 @@ package object cql {
         val cassandra = ev.toCassandra(value, datatype)
         (statement.set(index, cassandra, ev.classType), index + 1)
       }
-  }
-
-  trait BinderLowestPriority {
-    implicit val hNilBinder: Binder[HNil]                                   = new Binder[HNil] {
-      override def bind(statement: BoundStatement, index: Int, value: HNil): (BoundStatement, Int) = (statement, index)
-    }
-    implicit def hConsBinder[H: Binder, T <: HList: Binder]: Binder[H :: T] = new Binder[H :: T] {
-      override def bind(statement: BoundStatement, index: Int, value: H :: T): (BoundStatement, Int) = {
-        val (applied, nextIndex) = Binder[H].bind(statement, index, value.head)
-        Binder[T].bind(applied, nextIndex, value.tail)
-      }
-    }
   }
 }

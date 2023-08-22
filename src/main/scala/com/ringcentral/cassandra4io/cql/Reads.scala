@@ -3,7 +3,6 @@ package com.ringcentral.cassandra4io.cql
 import com.datastax.oss.driver.api.core.cql.Row
 import com.datastax.oss.driver.api.core.data.UdtValue
 import com.datastax.oss.driver.internal.core.`type`.{ DefaultListType, DefaultMapType, DefaultSetType }
-import shapeless.{ ::, Generic, HList, HNil }
 
 import java.nio.ByteBuffer
 import java.time.{ Instant, LocalDate }

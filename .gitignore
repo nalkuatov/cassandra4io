@@ -2,3 +2,6 @@
 .bsp/
 target/
 .idea/
+.bloop/
+.vscode/
+project/metals.sbt

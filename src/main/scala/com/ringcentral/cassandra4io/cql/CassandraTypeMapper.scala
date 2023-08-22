@@ -3,7 +3,6 @@ package com.ringcentral.cassandra4io.cql
 import com.datastax.oss.driver.api.core.`type`.{ DataType, UserDefinedType }
 import com.datastax.oss.driver.api.core.data.UdtValue
 import com.datastax.oss.driver.internal.core.`type`.{ DefaultListType, DefaultMapType, DefaultSetType }
-import shapeless.Lazy
 
 import java.nio.ByteBuffer
 import java.time.LocalDate
@@ -148,8 +147,8 @@ object CassandraTypeMapper       {
    * @return
    */
   implicit def udtCassandraTypeMapper[A](implicit
-    evToUdt: Lazy[ToUdtValue.Object[A]],
-    evFromUdt: Lazy[FromUdtValue.Object[A]]
+    evToUdt: => ToUdtValue.Object[A],
+    evFromUdt: => FromUdtValue.Object[A]
   ): CassandraTypeMapper.WithCassandra[A, UdtValue] =
     new CassandraTypeMapper[A] {
       override type Cassandra = UdtValue
@@ -158,11 +157,11 @@ object CassandraTypeMapper       {
 
       override def toCassandra(in: A, dataType: DataType): Cassandra = {
         val schema = dataType.asInstanceOf[UserDefinedType]
-        evToUdt.value.convert(FieldName.Unused, in, schema.newValue())
+        evToUdt.convert(FieldName.Unused, in, schema.newValue())
       }
 
       override def fromCassandra(in: Cassandra, dataType: DataType): A =
-        evFromUdt.value.convert(FieldName.Unused, in)
+        evFromUdt.convert(FieldName.Unused, in)
     }
 
   implicit def setCassandraTypeMapper[A](implicit
