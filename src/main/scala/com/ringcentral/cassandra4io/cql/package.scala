@@ -13,6 +13,7 @@ import fs2.Stream
 import java.nio.ByteBuffer
 import java.time.{ Instant, LocalDate }
 import java.util.UUID
+import scala.language.implicitConversions
 import scala.annotation.{ implicitNotFound, tailrec }
 import scala.jdk.CollectionConverters._
 

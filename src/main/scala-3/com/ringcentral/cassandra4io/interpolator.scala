@@ -43,7 +43,10 @@ object interpolator {
           }
         configuredBoundStatement
       }
-      ParameterizedQuery(QueryTemplate[EmptyTuple, Row](queryWithQuestionMark, assignValuesToStatement), EmptyTuple)
+      val a = ParameterizedQuery(QueryTemplate[EmptyTuple, Row](queryWithQuestionMark, assignValuesToStatement), EmptyTuple)
+      println(a.template.query)
+      println(values)
+      a
     }
   }
 

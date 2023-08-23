@@ -41,6 +41,9 @@ object query {
   }
 
   case class ParameterizedQuery[V <: Tuple: Binder, R: Reads] private[cassandra4io] (template: QueryTemplate[V, R], values: V) {
+
+    override def toString(): String = s"(query: ${template.query}, values: $values)"
+
     def +(that: String): ParameterizedQuery[V, R] = ParameterizedQuery[V, R](this.template + that, this.values)
 
     def ++[W <: Tuple](that: ParameterizedQuery[W, R])(implicit
@@ -83,6 +86,7 @@ object query {
     session: CassandraSession[F],
     private[cassandra4io] val statement: BoundStatement
   ) {
+    override def toString(): String = s"$statement"
     def config(statement: BoundStatement => BoundStatement) = new Query[F, R](session, statement(this.statement))
     def select: Stream[F, R]                                = session.select(statement).map(Reads[R].read(_, 0))
     def selectFirst: F[Option[R]]                           = OptionT(session.selectFirst(statement)).map(Reads[R].read(_, 0)).value

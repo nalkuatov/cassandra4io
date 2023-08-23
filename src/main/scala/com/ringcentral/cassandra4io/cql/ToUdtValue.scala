@@ -54,6 +54,13 @@ object ToUdtValue extends LowerPriorityToUdtValue with LowestPriorityToUdtValue 
 }
 trait LowerPriorityToUdtValue {
 
+  implicit def deriveOption[A](implicit
+    ev: ToUdtValue.Object[A]
+  ): ToUdtValue[Option[A]] = make {
+    case (Some(value), constructor) => ToUdtValue[A].convert(FieldName.Unused, value, constructor)
+    case (_, constructor) => constructor
+  }
+
   /**
    * ToUdtValue relies on the CassandraTypeMapper to convert Scala datatypes into datatypes compatible with the
    * Datastax Java driver (bi-directionally) in order to produce instances of FromUdtValue[A]. CassandraTypeMapper will

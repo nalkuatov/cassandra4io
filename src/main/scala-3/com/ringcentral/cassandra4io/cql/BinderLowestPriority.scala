@@ -1,15 +1,13 @@
 package com.ringcentral.cassandra4io.cql
 
+import shapeless3.deriving.*
 import com.datastax.oss.driver.api.core.cql.BoundStatement
 
-trait BinderLowestPriority {
-  given emptyBinder: Binder[EmptyTuple] = new Binder[EmptyTuple] {
-    override def bind(statement: BoundStatement, index: Int, value: EmptyTuple): (BoundStatement, Int) = (statement, index)
-  }
-  implicit def hConsBinder[H: Binder, T <: Tuple: Binder]: Binder[H *: T] = new Binder[H *: T] {
-    override def bind(statement: BoundStatement, index: Int, value: H *: T): (BoundStatement, Int) = {
-      val (applied, nextIndex) = Binder[H].bind(statement, index, value.head)
-      Binder[T].bind(applied, nextIndex, value.tail)
-    }
-  }
-}
+trait BinderLowestPriority:
+  given binderGen[A <: Product](
+    using pInst: K0.ProductInstances[Binder, A]
+  ): Binder[A] = (statement, index, value) =>
+    pInst.foldLeft(value)((statement, index))(
+      [t] => (acc: (BoundStatement, Int), binder: Binder[t], value: t) =>
+        binder.bind(acc._1, index, value)
+    )
