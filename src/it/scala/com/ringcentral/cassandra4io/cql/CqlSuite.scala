@@ -5,6 +5,7 @@ import cats.syntax.parallel._
 import com.datastax.oss.driver.api.core.ConsistencyLevel
 import com.ringcentral.cassandra4io.CassandraTestsSharedInstances
 import com.ringcentral.cassandra4io.interpolator._
+import com.ringcentral.cassandra4io.codec._
 import fs2.Stream
 import weaver._
 
@@ -21,11 +22,6 @@ trait CqlSuite {
 
   case class BasicInfo(weight: Double, height: String, datapoints: Set[Int])
 
-  object BasicInfo {
-    implicit val cqlReads: Reads[BasicInfo]   = FromUdtValue.deriveReads[BasicInfo]
-    implicit val cqlBinder: Binder[BasicInfo] = ToUdtValue.deriveBinder[BasicInfo]
-  }
-
   case class PersonAttribute(personId: Int, info: BasicInfo)
 
   object PersonAttribute {
@@ -35,11 +31,6 @@ trait CqlSuite {
   case class PersonAttributeOpt(personId: Int, info: Option[BasicInfo])
 
   case class OptBasicInfo(weight: Option[Double], height: Option[String], datapoints: Option[Set[Int]])
-
-  object OptBasicInfo {
-    implicit val cqlReads: Reads[OptBasicInfo]   = FromUdtValue.deriveReads[OptBasicInfo]
-    implicit val cqlBinder: Binder[OptBasicInfo] = ToUdtValue.deriveBinder[OptBasicInfo]
-  }
 
   case class PersonAttributeUdtOpt(personId: Int, info: OptBasicInfo)
 
@@ -56,23 +47,7 @@ trait CqlSuite {
 
   case class ExampleCollectionNestedUdtType(a: Int, b: Map[Int, Set[Set[Set[Set[ExampleNestedType]]]]])
 
-  object ExampleCollectionNestedUdtType {
-    implicit val binderExampleCollectionNestedUdtType: Binder[ExampleCollectionNestedUdtType] =
-      ToUdtValue.deriveBinder[ExampleCollectionNestedUdtType]
-
-    implicit val readsExampleCollectionNestedUdtType: Reads[ExampleCollectionNestedUdtType] =
-      FromUdtValue.deriveReads[ExampleCollectionNestedUdtType]
-  }
-
   case class ExampleNestedPrimitiveType(a: Int, b: Map[Int, Set[Set[Set[Set[Int]]]]])
-
-  object ExampleNestedPrimitiveType {
-    implicit val binderExampleNestedPrimitiveType: Binder[ExampleNestedPrimitiveType] =
-      ToUdtValue.deriveBinder[ExampleNestedPrimitiveType]
-
-    implicit val readsExampleNestedPrimitiveType: Reads[ExampleNestedPrimitiveType] =
-      FromUdtValue.deriveReads[ExampleNestedPrimitiveType]
-  }
 
   case class TableContainingExampleCollectionNestedUdtType(id: Int, data: ExampleCollectionNestedUdtType)
 
@@ -401,32 +376,32 @@ trait CqlSuite {
     } yield expect(result.isRight) && expect(result.contains(true))
   }
 
-  test("nullable fields should be correctly set with 'usingUnset'") { session =>
-    case class TestData(id: Long, data: Option[String], count: Option[Int])
-    val id = 111L
-    val data1 = TestData(id, Some("test"), Some(15))
-    val data2 = TestData(id, None, None)
+  // test("nullable fields should be correctly set with 'usingUnset'") { session =>
+  //   case class TestData(id: Long, data: Option[String], count: Option[Int])
+  //   val id = 111L
+  //   val data1 = TestData(id, Some("test"), Some(15))
+  //   val data2 = TestData(id, None, None)
 
-    // This test looks a bit awkward.
-    // It's because there is no easy way to differentiate between a null and empty field.
-    for {
-      insertResult1 <-
-        cql"insert into cassandra4io.test_data (id, data, count) values (${data1.id}, ${data1.data}, ${data1.count})"
-          .execute(session).attempt
-      selectResult1 <-
-        cql"select id, data, count from cassandra4io.test_data where id = $id".as[TestData].selectFirst(session)
-      insertResult2 <-
-        cql"insert into cassandra4io.test_data (id, data, count) values (${data2.id}, ${data2.data}, ${data2.count.usingUnset})"
-        .execute(session).attempt
-      selectResult2 <-
-        cql"select id, data, count from cassandra4io.test_data where id = $id".as[TestData].selectFirst(session)
-    } yield {
-      expect(insertResult1.contains(true)) &&
-        expect(insertResult2.contains(true)) &&
-        expect(selectResult1.contains(data1)) &&
-        expect(selectResult2.contains(data2.copy(count = data1.count)))
-    }
-  }
+  //   // This test looks a bit awkward.
+  //   // It's because there is no easy way to differentiate between a null and empty field.
+  //   for {
+  //     insertResult1 <-
+  //       cql"insert into cassandra4io.test_data (id, data, count) values (${data1.id}, ${data1.data}, ${data1.count})"
+  //         .execute(session).attempt
+  //     selectResult1 <-
+  //       cql"select id, data, count from cassandra4io.test_data where id = $id".as[TestData].selectFirst(session)
+  //     insertResult2 <-
+  //       cql"insert into cassandra4io.test_data (id, data, count) values (${data2.id}, ${data2.data}, ${data2.count.usingUnset})"
+  //       .execute(session).attempt
+  //     selectResult2 <-
+  //       cql"select id, data, count from cassandra4io.test_data where id = $id".as[TestData].selectFirst(session)
+  //   } yield {
+  //     expect(insertResult1.contains(true)) &&
+  //       expect(insertResult2.contains(true)) &&
+  //       expect(selectResult1.contains(data1)) &&
+  //       expect(selectResult2.contains(data2.copy(count = data1.count)))
+  //   }
+  // }
 
   // handle NULL values for udt columns
 

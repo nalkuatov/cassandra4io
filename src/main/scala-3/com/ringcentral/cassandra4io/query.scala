@@ -8,6 +8,7 @@ import fs2.Stream
 import com.ringcentral.cassandra4io.cql.*
 import com.datastax.oss.driver.api.core.cql.{BoundStatement, PreparedStatement}
 import cats.Monad
+import com.ringcentral.cassandra4io.codec.Reads
 
 object query {
   case class QueryTemplate[V <: Tuple: Binder, R: Reads] private[cassandra4io] (
@@ -88,8 +89,8 @@ object query {
   ) {
     override def toString(): String = s"$statement"
     def config(statement: BoundStatement => BoundStatement) = new Query[F, R](session, statement(this.statement))
-    def select: Stream[F, R]                                = session.select(statement).map(Reads[R].read(_, 0))
-    def selectFirst: F[Option[R]]                           = OptionT(session.selectFirst(statement)).map(Reads[R].read(_, 0)).value
+    def select: Stream[F, R]                                = session.select(statement).map(Reads[R].read(_))
+    def selectFirst: F[Option[R]]                           = OptionT(session.selectFirst(statement)).map(Reads[R].read(_)).value
     def execute: F[Boolean]                                 = session.execute(statement).map(_.wasApplied)
   }
 }

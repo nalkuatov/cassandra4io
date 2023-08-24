@@ -1,13 +1,20 @@
-package com.ringcentral.cassandra4io.cql
+package com.ringcentral.cassandra4io.codec
 
 import com.datastax.oss.driver.api.core.cql.Row
 import com.datastax.oss.driver.api.core.data.UdtValue
+import scala.util.control.NoStackTrace
+import com.datastax.oss.driver.api.core.cql.ColumnDefinition
 
 sealed trait UnexpectedNullValue extends Throwable
 
-class UnexpectedNullValueInColumn(row: Row, index: Int) extends RuntimeException() with UnexpectedNullValue {
+object UnexpectedNullValue {
+  // internal intermediate errors that will be enriched with more information later on
+  case class NullValueInUdt(udt: UdtValue, fieldName: String) extends NoStackTrace
+  case object NullValueInColumn                               extends NoStackTrace
+}
+
+case class UnexpectedNullValueInColumn(row: Row, cl: ColumnDefinition) extends RuntimeException() with UnexpectedNullValue {
   override def getMessage: String = {
-    val cl       = row.getColumnDefinitions.get(index)
     val table    = cl.getTable.toString
     val column   = cl.getName.toString
     val keyspace = cl.getKeyspace.toString
@@ -17,11 +24,10 @@ class UnexpectedNullValueInColumn(row: Row, index: Int) extends RuntimeException
   }
 }
 
-class UnexpectedNullValueInUdt(row: Row, index: Int, udt: UdtValue, fieldName: String)
+case class UnexpectedNullValueInUdt(row: Row, cl: ColumnDefinition, udt: UdtValue, fieldName: String)
     extends RuntimeException()
     with UnexpectedNullValue {
   override def getMessage: String = {
-    val cl       = row.getColumnDefinitions.get(index)
     val table    = cl.getTable.toString
     val column   = cl.getName.toString
     val keyspace = cl.getKeyspace.toString
@@ -36,6 +42,6 @@ class UnexpectedNullValueInUdt(row: Row, index: Int, udt: UdtValue, fieldName: S
 
 object UnexpectedNullValueInUdt {
 
-  private[cql] case class NullValueInUdt(udtValue: UdtValue, fieldName: String) extends Throwable("", null, true, false)
+  private[codec] case class NullValueInUdt(udtValue: UdtValue, fieldName: String) extends Throwable("", null, true, false)
 
 }

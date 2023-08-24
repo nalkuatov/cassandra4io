@@ -1,4 +1,4 @@
-package com.ringcentral.cassandra4io.cql
+package com.ringcentral.cassandra4io.codec
 
 import com.datastax.oss.driver.api.core.cql.Row
 import shapeless.{ ::, Generic, HList, HNil }
