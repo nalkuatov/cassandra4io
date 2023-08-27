@@ -2,7 +2,6 @@ package com.ringcentral.cassandra4io.codec
 
 import com.datastax.oss.driver.api.core.cql.Row
 import com.datastax.oss.driver.api.core.cql.ColumnDefinition
-import com.ringcentral.cassandra4io.codec.Reads._
 
 trait Reads[T] {
 
@@ -33,7 +32,7 @@ trait ReadsInstances1 {
       throw UnexpectedNullValueInUdt(row, columnDefinition, udt, udtFieldName)
   }
 
-  implicit def readsFromCellReads[T: CellReads]: Reads[T] = instance(readByIndex(_, 0))
+  implicit def readsFromCellReads[T: CellReads]: Reads[T] = Reads.instance(readByIndex(_, 0))
 
   protected def readByIndex[T: CellReads](row: Row, index: Int): T =
     try CellReads[T].read(row.getBytesUnsafe(index), row.protocolVersion(), row.getType(index))

@@ -46,7 +46,7 @@ trait ReadsInstances2 extends ReadsInstances1 {
   private inline def recurse[Names <: Tuple, Types <: Tuple](row: Row): Tuple =
     inline erasedValue[(Names, Types)] match {
       case (_: (name *: names), _: (tpe *: types)) =>
-        val fieldName = constValue[name].toString
+        val fieldName = Configuration.snakeCase(constValue[name].toString)
         val bytes     = row.getBytesUnsafe(fieldName)
         val fieldType = row.getType(fieldName)
         val head      = withRefinedError(summonInline[CellReads[tpe]].read(bytes, row.protocolVersion(), fieldType))(row, fieldName)

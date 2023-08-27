@@ -123,12 +123,12 @@ trait CellWritesInstances3 {
       codec.encode(udt, protocol)
     }
 
-  // implicit def cellWritesFromUdtWrites[T: UdtWrites]: CellWrites[T] =
-  //   instance { (t, protocol, dataType) =>
-  //     val udtType   = dataType.asInstanceOf[UserDefinedType]
-  //     val structure = udtType.newValue()
-  //     val udtValue  = UdtWrites[T].write(t, structure)
-  //     CellWrites[UdtValue].write(udtValue, protocol, udtType)
-  //   }
+  implicit def cellWritesFromUdtWrites[T: UdtWrites]: CellWrites[T] =
+    instance { (t, protocol, dataType) =>
+      val udtType   = dataType.asInstanceOf[UserDefinedType]
+      val structure = udtType.newValue()
+      val udtValue  = UdtWrites[T].write(t, structure)
+      CellWrites[UdtValue].write(udtValue, protocol, udtType)
+    }
 
 }

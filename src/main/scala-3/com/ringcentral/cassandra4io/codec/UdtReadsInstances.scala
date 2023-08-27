@@ -22,7 +22,7 @@ trait UdtReadsInstances:
   private inline def recurse[Names <: Tuple, Types <: Tuple](udtValue: UdtValue): Tuple =
     inline erasedValue[(Names, Types)] match {
       case (_: (name *: names), _: (tpe *: types)) =>
-        val fieldName = constValue[name].toString
+        val fieldName = Configuration.snakeCase(constValue[name].toString)
         val bytes     = udtValue.getBytesUnsafe(fieldName)
         val fieldType = udtValue.getType(fieldName)
         val head      = withRefinedError(summonInline[CellReads[tpe]].read(bytes, udtValue.protocolVersion(), fieldType))(udtValue, fieldName)

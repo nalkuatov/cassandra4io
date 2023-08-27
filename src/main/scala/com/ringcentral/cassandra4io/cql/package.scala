@@ -51,35 +51,10 @@ package object cql {
     def apply[T: Binder]: Put[T] = new Put[T] {}
   }
 
-  object Binder extends BinderLowerPriority with BinderLowestPriority {
+  object Binder {
 
     def apply[T](implicit binder: Binder[T]): Binder[T] = binder
 
-    implicit class UdtValueBinderOps(udtBinder: Binder[UdtValue]) {
-
-      /**
-       * This is necessary for UDT values as you are not allowed to safely create a UDT value, instead you use the
-       * prepared statement's variable definitions to retrieve a UserDefinedType that can be used as a constructor
-       * for a UdtValue
-       *
-       * @param f is a function that accepts the input value A along with a constructor that you use to build the
-       *          UdtValue that gets sent to Cassandra
-       * @tparam A
-       * @return
-       */
-      def contramapUDT[A](f: (A, UserDefinedType) => UdtValue): Binder[A] = new Binder[A] {
-        override def bind(statement: BoundStatement, index: Int, value: A): (BoundStatement, Int) = {
-          val udtValue = f(
-            value,
-            statement.getPreparedStatement.getVariableDefinitions.get(index).getType.asInstanceOf[UserDefinedType]
-          )
-          udtBinder.bind(statement, index, udtValue)
-        }
-      }
-    }
-  }
-
-  trait BinderLowerPriority {
     implicit def emptyTupleBinder: Binder[EmptyTuple] = (st, index, _) => (st, index)
 
     /** This typeclass instance is used to (inductively) derive datatypes that can have arbitrary amounts of nesting

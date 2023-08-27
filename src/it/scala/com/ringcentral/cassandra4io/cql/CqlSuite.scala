@@ -347,12 +347,12 @@ trait CqlSuite {
     )
   }
 
-  test("decoding from null should raise error for Set(collection)") { session =>
+  test("decoding from null should result in empty  Set(collection)") { session =>
     for {
       result <-
-        cql"select dataset FROM cassandra4io.test_data WHERE id = 0".as[Set[Int]].selectFirst(session).attempt
-    } yield expect(result.isLeft) && expect(
-      getError(result).isInstanceOf[UnexpectedNullValue]
+        cql"select dataset FROM cassandra4io.test_data WHERE id = 0".as[Set[Int]].selectFirst(session)
+    } yield expect(result.isDefined) && expect(
+      result == Some(Set.empty)
     )
   }
 
@@ -375,33 +375,6 @@ trait CqlSuite {
       result <- cql"insert into cassandra4io.test_data (id, data) values ($id, $data)".execute(session).attempt
     } yield expect(result.isRight) && expect(result.contains(true))
   }
-
-  // test("nullable fields should be correctly set with 'usingUnset'") { session =>
-  //   case class TestData(id: Long, data: Option[String], count: Option[Int])
-  //   val id = 111L
-  //   val data1 = TestData(id, Some("test"), Some(15))
-  //   val data2 = TestData(id, None, None)
-
-  //   // This test looks a bit awkward.
-  //   // It's because there is no easy way to differentiate between a null and empty field.
-  //   for {
-  //     insertResult1 <-
-  //       cql"insert into cassandra4io.test_data (id, data, count) values (${data1.id}, ${data1.data}, ${data1.count})"
-  //         .execute(session).attempt
-  //     selectResult1 <-
-  //       cql"select id, data, count from cassandra4io.test_data where id = $id".as[TestData].selectFirst(session)
-  //     insertResult2 <-
-  //       cql"insert into cassandra4io.test_data (id, data, count) values (${data2.id}, ${data2.data}, ${data2.count.usingUnset})"
-  //       .execute(session).attempt
-  //     selectResult2 <-
-  //       cql"select id, data, count from cassandra4io.test_data where id = $id".as[TestData].selectFirst(session)
-  //   } yield {
-  //     expect(insertResult1.contains(true)) &&
-  //       expect(insertResult2.contains(true)) &&
-  //       expect(selectResult1.contains(data1)) &&
-  //       expect(selectResult2.contains(data2.copy(count = data1.count)))
-  //   }
-  // }
 
   // handle NULL values for udt columns
 
@@ -485,7 +458,7 @@ trait CqlSuite {
     } yield expect(result.isLeft) && expect(getError(result).isInstanceOf[UnexpectedNullValue])
   }
 
-  test("decoding from null at udt field should raise error for Set(collection)") { session =>
+  test("decoding from null at udt field should result in empty collection for Set(collection)") { session =>
     val data =
       PersonAttributeUdtOpt(
         PersonAttribute.idxCounter.incrementAndGet(),
@@ -499,8 +472,8 @@ trait CqlSuite {
         cql"SELECT person_id, info FROM cassandra4io.person_attributes WHERE person_id = ${data.personId}"
           .as[PersonAttribute]
           .selectFirst(session)
-          .attempt
-    } yield expect(result.isLeft) && expect(getError(result).isInstanceOf[UnexpectedNullValue])
+
+    } yield expect(result.isDefined && result.get.info.datapoints == Set.empty)
   }
 
 }

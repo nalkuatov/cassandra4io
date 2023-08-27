@@ -19,15 +19,15 @@ object query {
 
     def ++[W <: Tuple](that: QueryTemplate[W, R])(implicit
       binderForW: Binder[W],
-      binderForOut: Binder[V *: W]
-    ): QueryTemplate[V *: W, R] = concat(that)
+      binderForOut: Binder[Tuple.Concat[V, W]]
+    ): QueryTemplate[Tuple.Concat[V, W], R] = concat(that)
 
     def concat[W <: Tuple](that: QueryTemplate[W, R])(implicit
       binderForW: Binder[W],
-      binderForOut: Binder[V *: W]
-    ): QueryTemplate[V *: W, R] = QueryTemplate[V *: W, R](
+      binderForOut: Binder[Tuple.Concat[V, W]]
+    ): QueryTemplate[Tuple.Concat[V, W], R] = QueryTemplate[Tuple.Concat[V, W], R](
       this.query + that.query,
-      statement => (this.config andThen that.config)(statement)
+      this.config andThen that.config
     )
 
     def as[R1: Reads]: QueryTemplate[V, R1] = QueryTemplate[V, R1](query, config)
@@ -49,14 +49,14 @@ object query {
 
     def ++[W <: Tuple](that: ParameterizedQuery[W, R])(implicit
       binderForW: Binder[W],
-      binderForOut: Binder[V *: W]
-    ): ParameterizedQuery[V *: W, R] = concat(that)
+      binderForOut: Binder[Tuple.Concat[V, W]]
+    ): ParameterizedQuery[Tuple.Concat[V, W], R] = concat(that)
 
     def concat[W <: Tuple](that: ParameterizedQuery[W, R])(implicit
       binderForW: Binder[W],
-      binderForOut: Binder[V *: W]
-    ): ParameterizedQuery[V *: W, R] =
-      ParameterizedQuery[V *: W, R](this.template ++ that.template, this.values *: that.values)
+      binderForOut: Binder[Tuple.Concat[V, W]]
+    ): ParameterizedQuery[Tuple.Concat[V, W], R] =
+      ParameterizedQuery[Tuple.Concat[V, W], R](this.template ++ that.template, this.values ++ that.values)
 
     def as[R1: Reads]: ParameterizedQuery[V, R1] = ParameterizedQuery[V, R1](template.as[R1], values)
 

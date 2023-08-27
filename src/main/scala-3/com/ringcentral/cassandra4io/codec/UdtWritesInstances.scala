@@ -21,7 +21,7 @@ trait UdtWritesInstances:
   private inline def recurse[Names <: Tuple, Types <: Tuple](element: Product, udtValue: UdtValue)(index: Int): UdtValue =
     inline erasedValue[(Names, Types)] match {
       case (_: (name *: names), _: (tpe *: types)) =>
-        val fieldName    = constValue[name].toString
+        val fieldName    = Configuration.snakeCase(constValue[name].toString)
         val fieldValue   = element.productElement(index).asInstanceOf[tpe]
         val fieldType    = udtValue.getType(fieldName)
         val bytes        = summonInline[CellWrites[tpe]].write(fieldValue, udtValue.protocolVersion(), fieldType)
