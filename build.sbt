@@ -26,7 +26,7 @@ inThisBuild(
   )
 )
 
-lazy val root = (project in file("."))
+lazy val core = (project in file("."))
   .configs(IntegrationTest)
   .settings(
     Defaults.itSettings,
